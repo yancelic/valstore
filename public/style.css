@@ -150,6 +150,40 @@ body {
 }
 .btn-arrow { font-family: var(--font-display); font-size: 1.2rem; }
 
+/* Notice Box */
+.docket-notice {
+  margin-bottom: 1.25rem;
+  padding: 0.9rem 1rem;
+  background: rgba(0, 229, 187, 0.04);
+  border: 1px dashed rgba(0, 229, 187, 0.35);
+  border-radius: var(--radius-strict);
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.notice-head {
+  display: flex;
+  align-items: center;
+}
+.notice-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--clr-cyan);
+  letter-spacing: 0.08em;
+}
+.notice-text {
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--txt-main);
+}
+.notice-text strong {
+  color: #FFFFFF;
+}
+.notice-text u {
+  text-underline-offset: 3px;
+  color: var(--clr-cyan);
+}
+
 .docket-form {
   display: flex;
   flex-direction: column;
