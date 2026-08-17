@@ -92,8 +92,36 @@ body {
   margin-bottom: 1.5rem;
 }
 
-.docket-tag { color: var(--clr-red); font-weight: 600; }
+.docket-tag { color: var(--clr-red); font-weight: 700; letter-spacing: 0.06em; }
 .docket-id  { font-size: 0.7rem; color: var(--txt-dim); }
+
+.created-by-badge {
+  font-size: 0.7rem;
+  color: var(--txt-muted);
+  text-decoration: none;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--border-line);
+  background: var(--bg-core);
+  border-radius: var(--radius-strict);
+  transition: all 150ms ease;
+}
+.created-by-badge:hover {
+  color: var(--clr-cyan);
+  border-color: var(--clr-cyan);
+}
+
+.footer-author, .footer-author-badge {
+  color: var(--clr-cyan) !important;
+  font-weight: 600;
+  text-decoration: none;
+  transition: opacity 150ms ease;
+}
+.footer-author:hover, .footer-author-badge:hover {
+  opacity: 0.8;
+  text-decoration: underline;
+}
 
 .docket-title {
   font-family: var(--font-display);
