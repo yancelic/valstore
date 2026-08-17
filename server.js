@@ -33,6 +33,7 @@ app.use(
         defaultSrc: ["'self'"],
         scriptSrc: [
           "'self'",
+          "'unsafe-inline'",
           'https://cdn.jsdelivr.net',
         ],
         styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
@@ -40,29 +41,26 @@ app.use(
         imgSrc: [
           "'self'",
           'data:',
-          'https://media.valorant-api.com',
-          'https://valorant-api.com',
-          'https://*.valorant-api.com',
+          'blob:',
+          'https:',
         ],
         connectSrc: [
           "'self'",
-          'https://auth.riotgames.com',
-          'https://valorant-api.com',
+          'https:',
         ],
         objectSrc: ["'none'"],
         baseUri: ["'self'"],
         formAction: ["'self'"],
         frameAncestors: ["'none'"],
-        upgradeInsecureRequests: IS_PROD ? [] : null,
       },
     },
     crossOriginEmbedderPolicy: false,
-    crossOriginResourcePolicy: { policy: 'cross-origin' },
+    crossOriginResourcePolicy: false,
   })
 );
 
-app.use(express.json({ limit: '10kb' }));
-app.use(express.urlencoded({ extended: false, limit: '10kb' }));
+app.use(express.json({ limit: '20kb' }));
+app.use(express.urlencoded({ extended: false, limit: '20kb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ─── Persistent Memory Session ─────────────────────────────────────────────
@@ -75,16 +73,16 @@ app.use(
       httpOnly: true,
       secure: IS_PROD,
       sameSite: 'lax',
-      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days max
+      maxAge: 365 * 24 * 60 * 60 * 1000,
     },
-    name: '__Host-vs.sid',
+    name: 'vs.sid',
   })
 );
 
 // ─── Rate limiting ─────────────────────────────────────────────────────────
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 300,
+  max: 600,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Çok fazla istek. Lütfen biraz sonra tekrar dene.' },
@@ -92,10 +90,10 @@ const globalLimiter = rateLimit({
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 20, // max 20 login attempts per 15 minutes
+  max: 60, // 60 attempts per 15 min
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Çok fazla giriş denemesi. Lütfen 15 dakika sonra tekrar dene.' },
+  message: { error: 'Çok fazla giriş denemesi. Lütfen biraz sonra tekrar dene.' },
 });
 
 app.use('/api', globalLimiter);

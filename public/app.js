@@ -231,8 +231,11 @@ async function loadStore() {
       return;
     }
     skinsGrid.innerHTML = `
-      <div style="grid-column: 1 / -1; padding: 2rem; text-align: center; color: var(--clr-red);">
-        [HATA]: ${escapeHTML(err.message || 'Mühimmat verisi alınamadı.')}
+      <div style="grid-column: 1 / -1; padding: 3rem 1.5rem; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 1rem;">
+        <span style="color: var(--clr-red); font-weight: 700;">[SİSTEM UYARISI]: ${escapeHTML(err.message || 'Mühimmat verisi alınamadı.')}</span>
+        <button onclick="loadStore()" class="docket-btn-submit" style="max-width: 200px; padding: 0.6rem 1rem; cursor: pointer;">
+          <span class="btn-text">Tekrar Dene ↻</span>
+        </button>
       </div>
     `;
   } finally {

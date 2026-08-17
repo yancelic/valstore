@@ -25,21 +25,25 @@ self.addEventListener('activate', (e) => {
   self.clients.claim();
 });
 
-// Fetch: network-first for API, cache-first for shell
+// Fetch: bypass all cross-origin requests and API requests
 self.addEventListener('fetch', (e) => {
-  const url = new URL(e.request.url);
-
-  // Always go to network for API calls
-  if (url.pathname.startsWith('/api/')) {
-    e.respondWith(fetch(e.request));
+  // Never intercept cross-origin requests (e.g. media.valorant-api.com, fonts)
+  if (!e.request.url.startsWith(self.location.origin)) {
     return;
   }
 
-  // Shell: try network, fall back to cache
+  const url = new URL(e.request.url);
+
+  // Always go to network directly for API calls
+  if (url.pathname.startsWith('/api/')) {
+    return;
+  }
+
+  // App shell: Network first, fall back to cache for offline support
   e.respondWith(
     fetch(e.request)
       .then((res) => {
-        if (res.ok) {
+        if (res && res.status === 200 && res.type === 'basic') {
           const clone = res.clone();
           caches.open(CACHE_NAME).then((c) => c.put(e.request, clone));
         }
