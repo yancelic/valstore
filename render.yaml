@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: valstore
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: INVITE_CODE
+        sync: false       # Set manually in Render dashboard
+      - key: SESSION_SECRET
+        generateValue: true  # Render auto-generates a secure random value
