@@ -285,6 +285,62 @@ async function init() {
   showView('login');
 }
 
+// ── PWA Installation Controller ───────────────────────────────────────────
+
+let deferredInstallPrompt = null;
+const installBannerLogin = document.getElementById('install-banner-login');
+const installBtnLogin   = document.getElementById('install-btn-login');
+const installBtnFooter  = document.getElementById('install-btn-footer');
+const installModal      = document.getElementById('install-modal');
+const installModalClose = document.getElementById('install-modal-close');
+const installModalOk    = document.getElementById('install-modal-ok');
+
+const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+
+function showInstallUI() {
+  if (isStandalone) return;
+  if (installBannerLogin) installBannerLogin.hidden = false;
+  if (installBtnFooter) installBtnFooter.hidden = false;
+}
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  showInstallUI();
+});
+
+// For iOS / browsers where beforeinstallprompt doesn't fire, show install button on mobile
+const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+if (isMobile && !isStandalone) {
+  showInstallUI();
+}
+
+async function handleInstallClick() {
+  if (deferredInstallPrompt) {
+    deferredInstallPrompt.prompt();
+    const choice = await deferredInstallPrompt.userChoice;
+    if (choice.outcome === 'accepted') {
+      if (installBannerLogin) installBannerLogin.hidden = true;
+      if (installBtnFooter) installBtnFooter.hidden = true;
+    }
+    deferredInstallPrompt = null;
+  } else {
+    // Show instruction modal for iOS / manual installation
+    if (installModal) installModal.hidden = false;
+  }
+}
+
+if (installBtnLogin) installBtnLogin.addEventListener('click', handleInstallClick);
+if (installBtnFooter) installBtnFooter.addEventListener('click', handleInstallClick);
+
+if (installModalClose) installModalClose.addEventListener('click', () => { installModal.hidden = true; });
+if (installModalOk) installModalOk.addEventListener('click', () => { installModal.hidden = true; });
+if (installModal) {
+  installModal.addEventListener('click', (e) => {
+    if (e.target === installModal) installModal.hidden = true;
+  });
+}
+
 // ── Service Worker ───────────────────────────────────────────────────────────
 
 if ('serviceWorker' in navigator) {

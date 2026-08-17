@@ -541,6 +541,116 @@ body {
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* ── PWA Installation UI ─────────────────────────────────────── */
+.install-banner {
+  margin-bottom: 1.25rem;
+}
+.install-banner-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: rgba(0, 229, 187, 0.08);
+  border: 1px solid var(--clr-cyan);
+  color: var(--txt-main);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: var(--radius-strict);
+  transition: all 150ms ease;
+}
+.install-banner-btn:hover {
+  background: rgba(0, 229, 187, 0.16);
+  transform: translateY(-1px);
+}
+.install-icon { font-size: 1.1rem; }
+.install-arrow { color: var(--clr-cyan); font-weight: 700; }
+
+.footer-install-btn {
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  color: var(--clr-cyan);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.25rem 0.5rem;
+  cursor: pointer;
+  border-radius: var(--radius-strict);
+  transition: all 150ms ease;
+}
+.footer-install-btn:hover {
+  border-color: var(--clr-cyan);
+  background: rgba(0, 229, 187, 0.1);
+}
+
+/* Modal Popup */
+.modal-card {
+  max-width: 440px;
+  width: 90%;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-strong);
+  padding: 1.5rem;
+  border-radius: var(--radius-strict);
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+}
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border-line);
+  padding-bottom: 0.6rem;
+}
+.modal-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--clr-cyan);
+  letter-spacing: 0.05em;
+}
+.modal-close-btn {
+  background: transparent;
+  border: none;
+  color: var(--txt-muted);
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 0.2rem 0.4rem;
+}
+.modal-close-btn:hover { color: var(--clr-red); }
+
+.modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.install-guide-section {
+  background: var(--bg-panel-alt);
+  border: 1px solid var(--border-line);
+  padding: 0.9rem;
+  border-radius: var(--radius-strict);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.guide-platform {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--txt-main);
+}
+.guide-steps {
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--txt-muted);
+  padding-left: 1.25rem;
+}
+.guide-steps strong {
+  color: #FFFFFF;
+}
+
 /* ── Responsive Adaptations ──────────────────────────────────── */
 @media (max-width: 680px) {
   .tactical-header {

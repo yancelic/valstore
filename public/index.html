@@ -38,6 +38,15 @@
             <a href="https://github.com/yancelic" target="_blank" rel="noopener noreferrer" class="created-by-badge" title="Geliştirici GitHub">created by yancelic ↗</a>
           </header>
 
+          <!-- Install Banner Button (Hidden if already installed) -->
+          <div id="install-banner-login" class="install-banner" hidden>
+            <button id="install-btn-login" class="install-banner-btn" type="button">
+              <span class="install-icon">📱</span>
+              <span class="install-text">Telefona Yükle (Uygulama Olarak Aç)</span>
+              <span class="install-arrow">➔</span>
+            </button>
+          </div>
+
           <div class="docket-body">
             <h1 class="docket-title">VALORANT GİRİŞİ</h1>
             <p class="docket-sub">Günlük mağazanı görmek için Riot resmi sayfası üzerinden giriş yap.</p>
@@ -157,6 +166,10 @@
             <span>HER GÜN 03:00 TSİ YENİLENİR</span>
           </div>
           <div class="footer-right">
+            <button id="install-btn-footer" class="footer-install-btn" type="button" hidden>
+              📱 Telefona Yükle
+            </button>
+            <span>•</span>
             <a href="https://github.com/yancelic" target="_blank" rel="noopener noreferrer" class="footer-author-badge">created by yancelic ↗</a>
             <span>•</span>
             <a href="https://www.riotgames.com/tr/terms-of-service" target="_blank" rel="noopener noreferrer">Kullanım Şartları</a>
@@ -165,6 +178,36 @@
           </div>
         </footer>
       </section>
+
+      <!-- ── PWA Installation Modal (For iOS / Fallback) ── -->
+      <div id="install-modal" class="manifest-overlay" hidden>
+        <div class="modal-card">
+          <div class="modal-header">
+            <span class="modal-title">📱 TELEFONA NASIL YÜKLENİR?</span>
+            <button id="install-modal-close" class="modal-close-btn" type="button">✕</button>
+          </div>
+          <div class="modal-body">
+            <div class="install-guide-section" id="ios-guide">
+              <span class="guide-platform">🍎 iPhone (Safari):</span>
+              <ol class="guide-steps">
+                <li>Safari'nin altındaki <strong>Paylaş (Share / ⎙)</strong> simgesine dokunun.</li>
+                <li>Açılan menüde aşağı kaydırıp <strong>"Ana Ekrana Ekle" (➕)</strong> seçeneğini seçin.</li>
+                <li>Sağ üstten <strong>"Ekle"</strong> butonuna basın.</li>
+              </ol>
+            </div>
+            <div class="install-guide-section" id="android-guide">
+              <span class="guide-platform">🤖 Android (Chrome):</span>
+              <ol class="guide-steps">
+                <li>Sağ üstteki <strong>üç nokta (⋮)</strong> menüsüne dokunun.</li>
+                <li><strong>"Uygulamayı Yükle"</strong> veya <strong>"Ana Ekrana Ekle"</strong> seçeneğini seçin.</li>
+              </ol>
+            </div>
+          </div>
+          <button id="install-modal-ok" class="docket-btn-submit" type="button">
+            <span>Anladım</span>
+          </button>
+        </div>
+      </div>
 
       <!-- Loading State -->
       <div id="store-loading" class="manifest-overlay" hidden>
