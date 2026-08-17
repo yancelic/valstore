@@ -1,28 +1,27 @@
 /**
- * app.js — ValStore Frontend SPA
- * Handles view routing, API calls, store rendering, and countdown timer.
+ * app.js — ValStore Tactical Manifest Controller
+ * Powered by motion.dev animation library and persistent local state.
  */
 
 'use strict';
 
-// ── View management ──────────────────────────────────────────────────────────
+const STORAGE_KEY = 'valstore_auth_token';
+
+// ── View System ──────────────────────────────────────────────────────────────
 
 const views = {
-  invite: document.getElementById('view-invite'),
-  login:  document.getElementById('view-login'),
-  mfa:    document.getElementById('view-mfa'),
-  store:  document.getElementById('view-store'),
+  login: document.getElementById('view-login'),
+  store: document.getElementById('view-store'),
 };
 
 function showView(name) {
   Object.entries(views).forEach(([key, el]) => {
-    el.hidden = key !== name;
+    if (el) el.hidden = key !== name;
   });
-  // Scroll to top on view change
   window.scrollTo(0, 0);
 }
 
-// ── Button loading state helpers ─────────────────────────────────────────────
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
 function setLoading(btn, loading) {
   const text    = btn.querySelector('.btn-text');
@@ -42,8 +41,6 @@ function clearError(el) {
   el.hidden = true;
 }
 
-// ── API helpers ──────────────────────────────────────────────────────────────
-
 async function api(method, path, body) {
   const res = await fetch(path, {
     method,
@@ -52,149 +49,73 @@ async function api(method, path, body) {
     credentials: 'same-origin',
   });
   const data = await res.json();
-  if (!res.ok) throw Object.assign(new Error(data.error || 'Bir hata oluştu'), { code: data.code });
+  if (!res.ok) throw Object.assign(new Error(data.error || 'İşlem başarısız'), { code: data.code });
   return data;
 }
 
-// ── Invite view ──────────────────────────────────────────────────────────────
+// ── Login / Token View ───────────────────────────────────────────────────────
 
-const inviteForm  = document.getElementById('invite-form');
-const inviteInput = document.getElementById('invite-input');
-const inviteBtn   = document.getElementById('invite-btn');
-const inviteError = document.getElementById('invite-error');
+const riotLoginLink = document.getElementById('riot-login-link');
+const tokenForm     = document.getElementById('token-form');
+const tokenInput    = document.getElementById('token-input');
+const tokenBtn      = document.getElementById('token-btn');
+const tokenError    = document.getElementById('token-error');
+const playerNameEl  = document.getElementById('player-name');
 
-inviteForm.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  clearError(inviteError);
-  const code = inviteInput.value.trim();
-  if (!code) return;
-
-  setLoading(inviteBtn, true);
+async function setupLoginView() {
   try {
-    await api('POST', '/api/invite', { code });
-    showView('login');
-    // Focus username field after transition
-    setTimeout(() => usernameInput.focus(), 50);
-  } catch (err) {
-    showError(inviteError, err.message);
-    inviteInput.value = '';
-    inviteInput.focus();
-  } finally {
-    setLoading(inviteBtn, false);
-  }
-});
-
-// ── Login view ───────────────────────────────────────────────────────────────
-
-const loginForm     = document.getElementById('login-form');
-const usernameInput = document.getElementById('username-input');
-const passwordInput = document.getElementById('password-input');
-const passwordToggle = document.getElementById('password-toggle');
-const loginBtn      = document.getElementById('login-btn');
-const loginError    = document.getElementById('login-error');
-
-// Password show/hide toggle
-passwordToggle.addEventListener('click', () => {
-  const isPassword = passwordInput.type === 'password';
-  passwordInput.type = isPassword ? 'text' : 'password';
-  passwordToggle.setAttribute('aria-label', isPassword ? 'Şifreyi gizle' : 'Şifreyi göster');
-  // Swap icon
-  const icon = document.getElementById('eye-icon');
-  if (isPassword) {
-    icon.innerHTML = `
-      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
-      <line x1="1" y1="1" x2="23" y2="23"/>
-    `;
-  } else {
-    icon.innerHTML = `
-      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-      <circle cx="12" cy="12" r="3"/>
-    `;
-  }
-});
-
-loginForm.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  clearError(loginError);
-  const username = usernameInput.value.trim();
-  const password = passwordInput.value;
-  if (!username || !password) return;
-
-  setLoading(loginBtn, true);
-  try {
-    const data = await api('POST', '/api/auth/login', { username, password });
-    if (data.type === 'mfa') {
-      showView('mfa');
-      setTimeout(() => mfaInput.focus(), 50);
-    } else {
-      // Direct success
-      loginForm.reset();
-      showView('store');
-      loadStore();
+    const res = await api('GET', '/api/auth/url');
+    if (res.url && riotLoginLink) riotLoginLink.href = res.url;
+  } catch (e) {
+    if (riotLoginLink) {
+      riotLoginLink.href =
+        'https://auth.riotgames.com/authorize?redirect_uri=https%3A%2F%2Fplayvalorant.com%2Fopt_in&client_id=play-valorant-web-prod&response_type=token%20id_token&scope=account%20openid&nonce=1';
     }
-  } catch (err) {
-    showError(loginError, err.message);
-    passwordInput.value = '';
-    passwordInput.focus();
-  } finally {
-    setLoading(loginBtn, false);
   }
-});
+}
 
-// ── MFA / 2FA view ───────────────────────────────────────────────────────────
+async function loginWithToken(tokenVal) {
+  const data = await api('POST', '/api/auth/token', { tokenInput: tokenVal });
+  localStorage.setItem(STORAGE_KEY, tokenVal);
 
-const mfaForm    = document.getElementById('mfa-form');
-const mfaInput   = document.getElementById('mfa-input');
-const mfaBtn     = document.getElementById('mfa-btn');
-const mfaError   = document.getElementById('mfa-error');
-const mfaBackBtn = document.getElementById('mfa-back-btn');
+  if (data.player && playerNameEl) {
+    playerNameEl.textContent = `${data.player.username.toUpperCase()} #${data.player.tag || ''}`;
+  }
+  showView('store');
+  loadStore();
+  return data;
+}
 
-// Auto-format: only digits
-mfaInput.addEventListener('input', () => {
-  mfaInput.value = mfaInput.value.replace(/\D/g, '');
-});
-
-mfaForm.addEventListener('submit', async (e) => {
+tokenForm.addEventListener('submit', async (e) => {
   e.preventDefault();
-  clearError(mfaError);
-  const code = mfaInput.value.trim();
-  if (!code) return;
+  clearError(tokenError);
+  const tokenVal = tokenInput.value.trim();
+  if (!tokenVal) return;
 
-  setLoading(mfaBtn, true);
+  setLoading(tokenBtn, true);
   try {
-    await api('POST', '/api/auth/mfa', { code });
-    mfaForm.reset();
-    showView('store');
-    loadStore();
+    await loginWithToken(tokenVal);
+    tokenForm.reset();
   } catch (err) {
-    showError(mfaError, err.message);
-    mfaInput.value = '';
-    mfaInput.focus();
+    showError(tokenError, err.message);
   } finally {
-    setLoading(mfaBtn, false);
+    setLoading(tokenBtn, false);
   }
 });
 
-mfaBackBtn.addEventListener('click', () => {
-  clearError(mfaError);
-  mfaForm.reset();
-  showView('login');
-});
+// ── Storefront View ──────────────────────────────────────────────────────────
 
-// ── Store view ───────────────────────────────────────────────────────────────
+const skinsGrid    = document.getElementById('skins-grid');
+const storeLoading = document.getElementById('store-loading');
+const timerDisplay = document.getElementById('timer-display');
+const logoutBtn    = document.getElementById('logout-btn');
+const walletBar    = document.getElementById('wallet-bar');
+const walletVp     = document.getElementById('wallet-vp');
+const walletRp     = document.getElementById('wallet-rp');
 
-const skinsGrid     = document.getElementById('skins-grid');
-const storeLoading  = document.getElementById('store-loading');
-const storeError    = document.getElementById('store-error');
-const storeErrorMsg = document.getElementById('store-error-msg');
-const storeRetryBtn = document.getElementById('store-retry-btn');
-const timerDisplay  = document.getElementById('timer-display');
-const logoutBtn     = document.getElementById('logout-btn');
+let timerInterval = null;
+let refreshAt     = null;
 
-let timerInterval   = null;
-let refreshAt       = null;
-
-/** Format seconds as HH:MM:SS */
 function formatCountdown(seconds) {
   if (seconds <= 0) return '00:00:00';
   const h = Math.floor(seconds / 3600);
@@ -212,51 +133,12 @@ function startTimer() {
     timerDisplay.textContent = formatCountdown(remaining);
     if (remaining === 0) {
       clearInterval(timerInterval);
-      timerDisplay.textContent = 'Yenilendi!';
-      // Auto-reload store after 5 seconds
-      setTimeout(loadStore, 5000);
+      timerDisplay.textContent = '00:00:00 [GÜNCELLENDİ]';
+      setTimeout(loadStore, 3000);
     }
   }
   tick();
   timerInterval = setInterval(tick, 1000);
-}
-
-/** Build a VP icon SVG */
-function vpIconSVG() {
-  return `<svg class="vp-icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M10 2L3 7l7 11 7-11-7-5z" fill="#7a8fa3" stroke="none"/>
-  </svg>`;
-}
-
-/** Build a single skin card HTML */
-function buildSkinCard(skin) {
-  const tierColor = skin.tier?.color ?? '#555';
-  const tierName  = skin.tier?.name  ?? 'Standard';
-
-  const imgHTML = skin.image
-    ? `<img class="skin-image" src="${skin.image}" alt="${escapeHTML(skin.name)}" loading="lazy" decoding="async"/>`
-    : `<div class="skin-no-image">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9l4-4 4 4 4-4 4 4"/>
-        </svg>
-       </div>`;
-
-  return `
-    <article class="skin-card" style="--tier-color:${tierColor}">
-      <div class="skin-image-wrap">${imgHTML}</div>
-      <div class="skin-info">
-        <div class="skin-tier-badge">
-          <span class="skin-tier-dot"></span>
-          ${escapeHTML(tierName)}
-        </div>
-        <p class="skin-name">${escapeHTML(skin.name)}</p>
-        <div class="skin-price">
-          ${vpIconSVG()}
-          ${skin.price.toLocaleString('tr-TR')}
-        </div>
-      </div>
-    </article>
-  `;
 }
 
 function escapeHTML(str) {
@@ -267,10 +149,42 @@ function escapeHTML(str) {
     .replace(/"/g, '&quot;');
 }
 
+function buildOrdinanceCard(skin, index) {
+  const slotNum = String(index + 1).padStart(2, '0');
+  const tierName = skin.tier?.name || 'STANDART';
+
+  const imgHTML = skin.image
+    ? `<img class="ordinance-image" src="${skin.image}" alt="${escapeHTML(skin.name)}" loading="lazy" decoding="async"/>`
+    : `<div class="ordinance-image no-img">[GÖRSEL BULUNAMADI]</div>`;
+
+  return `
+    <article class="ordinance-card" data-slot="${slotNum}">
+      <div class="ordinance-head">
+        <span class="slot-tag">SLOT // ${slotNum}</span>
+        <span class="tier-tag">${escapeHTML(tierName)}</span>
+      </div>
+      <div class="ordinance-visual">
+        ${imgHTML}
+      </div>
+      <div class="ordinance-data">
+        <div class="ordinance-name-group">
+          <span class="data-sub">SİLAH</span>
+          <span class="ordinance-name" title="${escapeHTML(skin.name)}">${escapeHTML(skin.name)}</span>
+        </div>
+        <div class="ordinance-cost-group">
+          <span class="data-sub">FİYAT</span>
+          <div class="ordinance-price">
+            ${skin.price.toLocaleString('tr-TR')}
+            <span class="price-unit">VP</span>
+          </div>
+        </div>
+      </div>
+    </article>
+  `;
+}
+
 async function loadStore() {
-  // Show loading, clear error + grid
-  storeLoading.classList.remove('hidden');
-  storeError.hidden = true;
+  storeLoading.hidden = false;
   skinsGrid.innerHTML = '';
   if (timerInterval) clearInterval(timerInterval);
 
@@ -278,68 +192,97 @@ async function loadStore() {
     const data = await api('GET', '/api/store');
     refreshAt = data.refreshAt;
 
-    // Render cards
-    skinsGrid.innerHTML = data.skins.map(buildSkinCard).join('');
+    // Render Balances
+    if (data.wallet && walletBar) {
+      if (data.wallet.vp !== null) {
+        walletVp.textContent = data.wallet.vp.toLocaleString('tr-TR');
+        walletBar.hidden = false;
+      }
+      if (data.wallet.radianite !== null) {
+        walletRp.textContent = data.wallet.radianite.toLocaleString('tr-TR');
+      }
+    }
 
-    // Start countdown
+    // Populate grid
+    skinsGrid.innerHTML = data.skins.map((skin, i) => buildOrdinanceCard(skin, i)).join('');
     startTimer();
 
-    // Fade out loading overlay
-    storeLoading.classList.add('hidden');
-    setTimeout(() => { storeLoading.style.display = 'none'; }, 300);
+    // Trigger Motion.dev card entry animation
+    if (window.Motion && window.Motion.animate) {
+      window.Motion.animate(
+        '.ordinance-card',
+        { opacity: [0, 1], y: [16, 0] },
+        { delay: window.Motion.stagger(0.08), duration: 0.35, easing: [0.25, 1, 0.5, 1] }
+      );
+    }
   } catch (err) {
-    storeLoading.classList.add('hidden');
-    setTimeout(() => { storeLoading.style.display = 'none'; }, 300);
-
     if (err.code === 'session_expired') {
-      // Force re-login
+      const savedToken = localStorage.getItem(STORAGE_KEY);
+      if (savedToken) {
+        try {
+          await loginWithToken(savedToken);
+          return;
+        } catch {
+          localStorage.removeItem(STORAGE_KEY);
+        }
+      }
+      setupLoginView();
       showView('login');
       return;
     }
-
-    storeError.hidden = false;
-    storeErrorMsg.textContent = err.message;
+    skinsGrid.innerHTML = `
+      <div style="grid-column: 1 / -1; padding: 2rem; text-align: center; color: var(--clr-red);">
+        [HATA]: ${escapeHTML(err.message || 'Mühimmat verisi alınamadı.')}
+      </div>
+    `;
+  } finally {
+    storeLoading.hidden = true;
   }
 }
 
-storeRetryBtn.addEventListener('click', loadStore);
-
 logoutBtn.addEventListener('click', async () => {
-  try {
-    await api('POST', '/api/auth/logout');
-  } catch { /* ignore */ }
+  localStorage.removeItem(STORAGE_KEY);
+  try { await api('POST', '/api/auth/logout'); } catch {}
   if (timerInterval) clearInterval(timerInterval);
   skinsGrid.innerHTML = '';
-  storeLoading.style.display = '';
-  storeLoading.classList.remove('hidden');
-  showView('invite');
+  walletBar.hidden = true;
+  setupLoginView();
+  showView('login');
 });
 
-// ── Boot: check session state ────────────────────────────────────────────────
+// ── Boot & Recovery ──────────────────────────────────────────────────────────
 
 async function init() {
   try {
     const status = await api('GET', '/api/status');
     if (status.isAuthenticated) {
+      if (status.player && playerNameEl) {
+        playerNameEl.textContent = `${status.player.username.toUpperCase()} #${status.player.tag || ''}`;
+      }
       showView('store');
       loadStore();
-    } else if (status.pendingMFA) {
-      showView('mfa');
-      setTimeout(() => mfaInput.focus(), 50);
-    } else if (status.hasInvite) {
-      showView('login');
-      setTimeout(() => usernameInput.focus(), 50);
-    } else {
-      showView('invite');
-      setTimeout(() => inviteInput.focus(), 50);
+      return;
     }
-  } catch {
-    // If status check fails, show invite screen
-    showView('invite');
+  } catch {}
+
+  const savedToken = localStorage.getItem(STORAGE_KEY);
+  if (savedToken) {
+    try {
+      storeLoading.hidden = false;
+      await loginWithToken(savedToken);
+      return;
+    } catch {
+      localStorage.removeItem(STORAGE_KEY);
+    } finally {
+      storeLoading.hidden = true;
+    }
   }
+
+  await setupLoginView();
+  showView('login');
 }
 
-// ── Service Worker registration ──────────────────────────────────────────────
+// ── Service Worker ───────────────────────────────────────────────────────────
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
@@ -347,5 +290,4 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-// ── Start ────────────────────────────────────────────────────────────────────
 init();

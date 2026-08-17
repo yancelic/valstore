@@ -1,31 +1,33 @@
 /**
  * store.js — Valorant Storefront Fetcher
- * Fetches daily store offers and enriches them with skin metadata
- * from the public valorant-api.com API.
  */
 
 const axios = require('axios');
-const { getClientVersion, CLIENT_PLATFORM } = require('./auth');
 
-const STORE_USER_AGENT = 'ShooterGame/13 Windows/10.0.19043.1.256.64bit';
-
-// VP currency UUID (Valorant Points)
 const VP_UUID = '85ad13f7-3d1b-5128-9eb2-7cd8ee0b5741';
+const RADIANITE_UUID = 'e59aa87c-4cbf-517a-5983-6e81511be0b0';
 
-// In-memory caches to avoid repeated valorant-api.com requests
-let cachedClientVersion = null;
+const CLIENT_PLATFORM =
+  'ew0KCSJwbGF0Zm9ybVR5cGUiOiAiUEMiLA0KCSJwbGF0Zm9ybU9TIjogIldpbmRvd3MiLA0KCSJwbGF0Zm9ybU9TVmVyc2lvbiI6ICIxMC4wLjE5MDQyLjEuMjU2LjY0Yml0IiwNCgkicGxhdGZvcm1DaGlwc2V0IjogIlVua25vd24iDQp9';
+
 const skinCache = new Map();
 const tierCache = new Map();
+let cachedClientVersion = null;
 
-async function getCachedClientVersion() {
-  if (!cachedClientVersion) {
-    cachedClientVersion = await getClientVersion();
+async function getClientVersion() {
+  if (cachedClientVersion) return cachedClientVersion;
+  try {
+    const res = await axios.get('https://valorant-api.com/v1/version', { timeout: 5000 });
+    cachedClientVersion = res.data.data.riotClientVersion;
+  } catch {
+    cachedClientVersion = 'release-13.02-shipping-17-5277781';
   }
   return cachedClientVersion;
 }
 
-/** Get skin metadata (name, image, tier) from valorant-api.com */
+/** Get skin metadata from valorant-api.com */
 async function getSkinLevel(uuid) {
+  if (!uuid) return { uuid: '', name: 'Bilinmeyen Skin', image: null, contentTierUuid: null };
   if (skinCache.has(uuid)) return skinCache.get(uuid);
 
   try {
@@ -43,13 +45,13 @@ async function getSkinLevel(uuid) {
     skinCache.set(uuid, info);
     return info;
   } catch {
-    const fallback = { uuid, name: 'Unknown Skin', image: null, contentTierUuid: null };
+    const fallback = { uuid, name: 'Valorant Skin', image: null, contentTierUuid: null };
     skinCache.set(uuid, fallback);
     return fallback;
   }
 }
 
-/** Get content tier info (Select, Deluxe, Premium, Ultra, Exclusive) */
+/** Get content tier info */
 async function getContentTier(uuid) {
   if (!uuid) return null;
   if (tierCache.has(uuid)) return tierCache.get(uuid);
@@ -60,7 +62,6 @@ async function getContentTier(uuid) {
       { timeout: 8000 }
     );
     const tier = res.data.data;
-    // highlightColor is RGBA hex like "0F4C5C99" — take first 6 chars for RGB
     const rawColor = tier.highlightColor ?? 'FFFFFF';
     const info = {
       name: tier.displayName,
@@ -75,48 +76,76 @@ async function getContentTier(uuid) {
   }
 }
 
-/**
- * Fetch the player's current daily storefront.
- * Returns enriched skin data with names, images, prices, and tier info.
- */
-async function getStore(accessToken, entitlementToken, puuid, shard) {
-  const clientVersion = await getCachedClientVersion();
-
-  const res = await axios.get(
-    `https://pd.${shard}.a.pvp.net/store/v2/storefront/${puuid}`,
-    {
+/** Get player wallet balance (VP & Radianite) */
+async function getWallet(accessToken, entitlementToken, puuid, shard) {
+  try {
+    const res = await axios.get(`https://pd.${shard || 'eu'}.a.pvp.net/store/v1/wallet/${puuid}`, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
         'X-Riot-Entitlements-JWT': entitlementToken,
-        'X-Riot-ClientVersion': clientVersion,
-        'X-Riot-ClientPlatform': CLIENT_PLATFORM,
-        'User-Agent': STORE_USER_AGENT,
       },
-      timeout: 10000,
-    }
-  );
+      timeout: 6000,
+    });
+    const balances = res.data.Balances || {};
+    return {
+      vp: balances[VP_UUID] ?? 0,
+      radianite: balances[RADIANITE_UUID] ?? 0,
+    };
+  } catch {
+    return { vp: null, radianite: null };
+  }
+}
 
-  const layout = res.data.SkinsPanelLayout;
-  const offers = layout.SingleItemStoreOffers;
-  const remainingSeconds = layout.SingleItemOffersRemainingDurationInSeconds;
+/**
+ * Fetch daily store offers and wallet balances
+ */
+async function getStore(accessToken, entitlementToken, puuid, shard) {
+  const clientVersion = await getClientVersion();
+  const reg = shard || 'eu';
+  const url = `https://pd.${reg}.a.pvp.net/store/v3/storefront/${puuid}`;
+
+  const [storeRes, wallet] = await Promise.all([
+    axios.post(
+      url,
+      {},
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'X-Riot-Entitlements-JWT': entitlementToken,
+          'X-Riot-ClientPlatform': CLIENT_PLATFORM,
+          'X-Riot-ClientVersion': clientVersion,
+        },
+        timeout: 10000,
+      }
+    ),
+    getWallet(accessToken, entitlementToken, puuid, shard),
+  ]);
+
+  const layout = storeRes.data.SkinsPanelLayout || {};
+  const offers = layout.SingleItemStoreOffers || [];
+  const remainingSeconds = layout.SingleItemOffersRemainingDurationInSeconds || 86400;
 
   // Enrich all 4 skins in parallel
   const skins = await Promise.all(
     offers.map(async (offer) => {
-      const skinInfo = await getSkinLevel(offer.OfferID);
+      const skinUuid = typeof offer === 'string' ? offer : (offer.OfferID || offer.Item?.ItemID || '');
+      const skinInfo = await getSkinLevel(skinUuid);
       const tier = await getContentTier(skinInfo.contentTierUuid);
+      const cost = offer.Cost ? (offer.Cost[VP_UUID] ?? Object.values(offer.Cost)[0] ?? 0) : 0;
+
       return {
         uuid: skinInfo.uuid,
         name: skinInfo.name,
         image: skinInfo.image,
-        price: offer.Cost[VP_UUID] ?? 0,
-        tier: tier ?? { name: 'Standard', color: '#FFFFFF', icon: null, rank: 0 },
+        price: cost,
+        tier: tier ?? { name: 'Edition', color: '#FF4655', icon: null, rank: 0 },
       };
     })
   );
 
   return {
     skins,
+    wallet,
     remainingSeconds,
     refreshAt: new Date(Date.now() + remainingSeconds * 1000).toISOString(),
   };

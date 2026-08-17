@@ -1,42 +1,71 @@
 /**
  * server.js — ValStore Express Server
  * Serves the frontend PWA and exposes REST API endpoints.
+ * Built with Zero-Log, Zero-Retention, and Military-Grade Security.
  */
 
 require('dotenv').config();
+const crypto = require('crypto');
 const express = require('express');
+const helmet = require('helmet');
 const session = require('express-session');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
 
-const { startAuth, submitMFA, refreshTokens } = require('./auth');
+const { RIOT_AUTH_URL, authenticateWithToken } = require('./auth');
 const { getStore } = require('./store');
 
-// ─── Startup validation ────────────────────────────────────────────────────
-const INVITE_CODE = process.env.INVITE_CODE;
-const SESSION_SECRET = process.env.SESSION_SECRET;
-
-if (!INVITE_CODE) {
-  console.error('❌  INVITE_CODE environment variable is required.');
-  process.exit(1);
-}
-if (!SESSION_SECRET || SESSION_SECRET === 'replace-this-with-a-long-random-string') {
-  console.error('❌  SESSION_SECRET is not set or is using the default value.');
-  process.exit(1);
-}
+// Generate safe fallback secret if not provided
+const SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
 
 // ─── App setup ─────────────────────────────────────────────────────────────
 const app = express();
 const PORT = process.env.PORT || 3000;
 const IS_PROD = process.env.NODE_ENV === 'production';
 
-app.set('trust proxy', 1); // Required for Render / reverse proxy
+app.set('trust proxy', 1);
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+// ─── Security Headers (Helmet + CSP) ──────────────────────────────────────
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: [
+          "'self'",
+          'https://cdn.jsdelivr.net',
+        ],
+        styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+        fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
+        imgSrc: [
+          "'self'",
+          'data:',
+          'https://media.valorant-api.com',
+          'https://valorant-api.com',
+          'https://*.valorant-api.com',
+        ],
+        connectSrc: [
+          "'self'",
+          'https://auth.riotgames.com',
+          'https://valorant-api.com',
+        ],
+        objectSrc: ["'none'"],
+        baseUri: ["'self'"],
+        formAction: ["'self'"],
+        frameAncestors: ["'none'"],
+        upgradeInsecureRequests: IS_PROD ? [] : null,
+      },
+    },
+    crossOriginEmbedderPolicy: false,
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  })
+);
+
+app.use(express.json({ limit: '10kb' }));
+app.use(express.urlencoded({ extended: false, limit: '10kb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ─── Sessions ──────────────────────────────────────────────────────────────
+// ─── Persistent Memory Session ─────────────────────────────────────────────
 app.use(
   session({
     secret: SESSION_SECRET,
@@ -44,43 +73,35 @@ app.use(
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      secure: IS_PROD, // HTTPS only in production
+      secure: IS_PROD,
       sameSite: 'lax',
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days max
     },
-    name: 'vs.sid',
+    name: '__Host-vs.sid',
   })
 );
 
 // ─── Rate limiting ─────────────────────────────────────────────────────────
 const globalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 60,
+  windowMs: 15 * 60 * 1000,
+  max: 300,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Çok fazla istek. Lütfen 15 dakika sonra tekrar dene.' },
+  message: { error: 'Çok fazla istek. Lütfen biraz sonra tekrar dene.' },
 });
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 8, // 8 login attempts per 15 min
+  max: 20, // max 20 login attempts per 15 minutes
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Çok fazla giriş denemesi. Lütfen 15 dakika bekle.' },
+  message: { error: 'Çok fazla giriş denemesi. Lütfen 15 dakika sonra tekrar dene.' },
 });
 
 app.use('/api', globalLimiter);
-app.use('/api/auth/login', authLimiter);
-app.use('/api/auth/mfa', authLimiter);
+app.use('/api/auth/token', authLimiter);
 
 // ─── Middleware helpers ────────────────────────────────────────────────────
-function requireInvite(req, res, next) {
-  if (!req.session.hasInvite) {
-    return res.status(403).json({ error: 'Davet kodu gerekli.' });
-  }
-  next();
-}
-
 function requireAuth(req, res, next) {
   if (!req.session.auth) {
     return res.status(401).json({ error: 'Oturum açılmamış.' });
@@ -92,163 +113,91 @@ function requireAuth(req, res, next) {
 
 /**
  * GET /api/status
- * Returns current session state so the frontend knows which view to render.
  */
 app.get('/api/status', (req, res) => {
   res.json({
-    hasInvite: !!req.session.hasInvite,
     isAuthenticated: !!req.session.auth,
-    pendingMFA: !!req.session.pendingMFA,
+    player: req.session.auth
+      ? {
+          username: req.session.auth.username,
+          tag: req.session.auth.tag,
+        }
+      : null,
   });
 });
 
 /**
- * POST /api/invite
- * Validate invite code. Sets session flag on success.
+ * GET /api/auth/url
  */
-app.post('/api/invite', (req, res) => {
-  const { code } = req.body;
-  if (!code) return res.status(400).json({ error: 'Kod eksik.' });
-
-  if (code.trim() === INVITE_CODE) {
-    req.session.hasInvite = true;
-    return res.json({ success: true });
-  }
-
-  return res.status(403).json({ error: 'Geçersiz davet kodu.' });
+app.get('/api/auth/url', (req, res) => {
+  res.json({ url: RIOT_AUTH_URL });
 });
 
 /**
- * POST /api/auth/login
- * Initiate Riot RSO login with username + password.
+ * POST /api/auth/token
+ * Logs in with pasted token/URL and stores in temporary RAM session
  */
-app.post('/api/auth/login', requireInvite, async (req, res) => {
-  const { username, password } = req.body;
-  if (!username || !password) {
-    return res.status(400).json({ error: 'Kullanıcı adı ve şifre gerekli.' });
+app.post('/api/auth/token', async (req, res) => {
+  const { tokenInput } = req.body;
+  if (!tokenInput || typeof tokenInput !== 'string') {
+    return res.status(400).json({ error: 'Lütfen Riot yönlendirme linkini yapıştır.' });
   }
 
   try {
-    const result = await startAuth(username, password);
-
-    if (result.type === 'response') {
-      req.session.auth = {
-        accessToken: result.accessToken,
-        entitlementToken: result.entitlementToken,
-        puuid: result.puuid,
-        shard: result.shard,
-        cookieJar: result.cookieJar,
-        tokenExpiry: Date.now() + 55 * 60 * 1000, // 55 min (tokens last 1h)
-      };
-      req.session.pendingMFA = null;
-      return res.json({ success: true, type: 'success' });
-    }
-
-    if (result.type === 'multifactor') {
-      req.session.pendingMFA = { cookieJar: result.cookieJar };
-      return res.json({ success: true, type: 'mfa' });
-    }
-  } catch (err) {
-    if (err.code === 'auth_failure') {
-      return res.status(401).json({ error: 'Kullanıcı adı veya şifre hatalı.' });
-    }
-    if (err.code === 'rate_limited') {
-      return res.status(429).json({ error: 'Riot sunucusu çok fazla deneme yaptığın için kısa süreliğine erişimi engelledi. Birkaç dakika bekle.' });
-    }
-    console.error('[login]', err.message);
-    return res.status(500).json({ error: 'Giriş sırasında bir hata oluştu.' });
-  }
-});
-
-/**
- * POST /api/auth/mfa
- * Submit 2FA verification code.
- */
-app.post('/api/auth/mfa', requireInvite, async (req, res) => {
-  if (!req.session.pendingMFA) {
-    return res.status(400).json({ error: '2FA bekleyen oturum yok.' });
-  }
-
-  const { code } = req.body;
-  if (!code) return res.status(400).json({ error: 'Doğrulama kodu gerekli.' });
-
-  try {
-    const result = await submitMFA(req.session.pendingMFA.cookieJar, code);
+    const authData = await authenticateWithToken(tokenInput);
 
     req.session.auth = {
-      accessToken: result.accessToken,
-      entitlementToken: result.entitlementToken,
-      puuid: result.puuid,
-      shard: result.shard,
-      cookieJar: result.cookieJar,
-      tokenExpiry: Date.now() + 55 * 60 * 1000,
+      accessToken: authData.accessToken,
+      entitlementToken: authData.entitlementToken,
+      puuid: authData.puuid,
+      username: authData.username,
+      tag: authData.tag,
+      shard: authData.shard,
     };
-    req.session.pendingMFA = null;
-    return res.json({ success: true });
+
+    return res.json({
+      success: true,
+      player: { username: authData.username, tag: authData.tag },
+    });
   } catch (err) {
-    if (err.code === 'invalid_mfa_code') {
-      return res.status(401).json({ error: 'Doğrulama kodu hatalı.' });
-    }
-    console.error('[mfa]', err.message);
-    return res.status(500).json({ error: '2FA doğrulaması sırasında hata oluştu.' });
+    const msg =
+      err.response?.status === 401
+        ? 'Geçersiz veya süresi dolmuş token. Lütfen linki tekrar al.'
+        : err.message || 'Giriş doğrulanamadı.';
+    return res.status(400).json({ error: msg });
   }
 });
 
 /**
  * GET /api/store
- * Return current daily store for the authenticated user.
- * Auto-refreshes token if it's about to expire.
  */
-app.get('/api/store', requireInvite, requireAuth, async (req, res) => {
-  const authData = req.session.auth;
-
+app.get('/api/store', requireAuth, async (req, res) => {
   try {
-    // Refresh token if expiring within 2 minutes
-    if (Date.now() > authData.tokenExpiry - 2 * 60 * 1000) {
-      try {
-        const refreshed = await refreshTokens(authData.cookieJar);
-        req.session.auth = {
-          ...authData,
-          accessToken: refreshed.accessToken,
-          entitlementToken: refreshed.entitlementToken,
-          cookieJar: refreshed.cookieJar,
-          tokenExpiry: Date.now() + 55 * 60 * 1000,
-        };
-      } catch (refreshErr) {
-        if (refreshErr.code === 'cookie_expired') {
-          req.session.auth = null;
-          return res.status(401).json({ error: 'Oturum süresi doldu. Lütfen tekrar giriş yap.', code: 'session_expired' });
-        }
-        throw refreshErr;
-      }
-    }
-
     const { accessToken, entitlementToken, puuid, shard } = req.session.auth;
     const store = await getStore(accessToken, entitlementToken, puuid, shard);
     return res.json(store);
   } catch (err) {
-    // Riot returned 400/401 — token is invalid
-    if (err.response?.status === 400 || err.response?.status === 401) {
+    if (err.response?.status === 401) {
       req.session.auth = null;
-      return res.status(401).json({ error: 'Oturum süresi doldu. Lütfen tekrar giriş yap.', code: 'session_expired' });
+      return res.status(401).json({
+        error: 'Oturum süresi doldu. Lütfen tekrar giriş yap.',
+        code: 'session_expired',
+      });
     }
-    console.error('[store]', err.message);
     return res.status(500).json({ error: 'Mağaza verileri alınamadı. Lütfen tekrar dene.' });
   }
 });
 
 /**
  * POST /api/auth/logout
- * Destroy the user's session.
  */
 app.post('/api/auth/logout', (req, res) => {
-  req.session.destroy((err) => {
-    if (err) console.error('[logout]', err);
+  req.session.destroy(() => {
     res.json({ success: true });
   });
 });
 
-// ─── SPA fallback — serve index.html for all non-API routes ───────────────
+// ─── SPA fallback ──────────────────────────────────────────────────────────
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
