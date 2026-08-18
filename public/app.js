@@ -1,6 +1,5 @@
 /**
  * app.js — ValStore Tactical Manifest Controller
- * Powered by motion.dev animation library and persistent local state.
  */
 
 'use strict';
@@ -24,19 +23,22 @@ function showView(name) {
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function setLoading(btn, loading) {
-  const text    = btn.querySelector('.btn-text');
+  if (!btn) return;
+  const text = btn.querySelector('.btn-text');
   const spinner = btn.querySelector('.btn-spinner');
-  btn.disabled  = loading;
-  if (text)    text.hidden = loading;
+  btn.disabled = loading;
+  if (text) text.hidden = loading;
   if (spinner) spinner.hidden = !loading;
 }
 
 function showError(el, msg) {
+  if (!el) return;
   el.textContent = msg;
   el.hidden = false;
 }
 
 function clearError(el) {
+  if (!el) return;
   el.textContent = '';
   el.hidden = true;
 }
@@ -53,20 +55,29 @@ async function api(method, path, body) {
   return data;
 }
 
+function escapeHTML(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 // ── Login / Token View ───────────────────────────────────────────────────────
 
-const riotLoginLink = document.getElementById('riot-login-link');
-const tokenForm     = document.getElementById('token-form');
-const tokenInput    = document.getElementById('token-input');
-const tokenBtn      = document.getElementById('token-btn');
-const tokenError    = document.getElementById('token-error');
-const playerNameEl  = document.getElementById('player-name');
+const riotLoginLink      = document.getElementById('riot-login-link');
+const tokenForm          = document.getElementById('token-form');
+const tokenInput         = document.getElementById('token-input');
+const tokenBtn           = document.getElementById('token-btn');
+const tokenError         = document.getElementById('token-error');
+const linkExpiryNotice   = document.getElementById('link-expiry-notice');
+const playerNameEl       = document.getElementById('player-name');
 
 async function setupLoginView() {
   try {
     const res = await api('GET', '/api/auth/url');
     if (res.url && riotLoginLink) riotLoginLink.href = res.url;
-  } catch (e) {
+  } catch {
     if (riotLoginLink) {
       riotLoginLink.href =
         'https://auth.riotgames.com/authorize?redirect_uri=https%3A%2F%2Fplayvalorant.com%2Fopt_in&client_id=play-valorant-web-prod&response_type=token%20id_token&scope=account%20openid&nonce=1';
@@ -74,19 +85,7 @@ async function setupLoginView() {
   }
 }
 
-async function loginWithToken(tokenVal) {
-  const data = await api('POST', '/api/auth/token', { tokenInput: tokenVal });
-  localStorage.setItem(STORAGE_KEY, tokenVal);
-
-  if (data.player && playerNameEl) {
-    playerNameEl.textContent = `${data.player.username.toUpperCase()} #${data.player.tag || ''}`;
-  }
-  showView('store');
-  loadStore();
-  return data;
-}
-
-tokenForm.addEventListener('submit', async (e) => {
+tokenForm?.addEventListener('submit', async (e) => {
   e.preventDefault();
   clearError(tokenError);
   const tokenVal = tokenInput.value.trim();
@@ -94,7 +93,10 @@ tokenForm.addEventListener('submit', async (e) => {
 
   setLoading(tokenBtn, true);
   try {
-    await loginWithToken(tokenVal);
+    const data = await api('POST', '/api/auth/token', { tokenInput: tokenVal });
+    localStorage.setItem(STORAGE_KEY, tokenVal);
+    if (linkExpiryNotice) linkExpiryNotice.hidden = true;
+    onLoginSuccess(data.player);
     tokenForm.reset();
   } catch (err) {
     showError(tokenError, err.message);
@@ -103,7 +105,15 @@ tokenForm.addEventListener('submit', async (e) => {
   }
 });
 
-// ── Storefront View ──────────────────────────────────────────────────────────
+function onLoginSuccess(player) {
+  if (player && playerNameEl) {
+    playerNameEl.textContent = `${player.username.toUpperCase()} #${player.tag || ''}`;
+  }
+  showView('store');
+  loadStore();
+}
+
+// ── Storefront ────────────────────────────────────────────────────────────────
 
 const skinsGrid    = document.getElementById('skins-grid');
 const storeLoading = document.getElementById('store-loading');
@@ -130,10 +140,10 @@ function startTimer() {
 
   function tick() {
     const remaining = Math.max(0, Math.floor((new Date(refreshAt) - Date.now()) / 1000));
-    timerDisplay.textContent = formatCountdown(remaining);
+    if (timerDisplay) timerDisplay.textContent = formatCountdown(remaining);
     if (remaining === 0) {
       clearInterval(timerInterval);
-      timerDisplay.textContent = '00:00:00 [GÜNCELLENDİ]';
+      if (timerDisplay) timerDisplay.textContent = '00:00:00';
       setTimeout(loadStore, 3000);
     }
   }
@@ -141,16 +151,8 @@ function startTimer() {
   timerInterval = setInterval(tick, 1000);
 }
 
-function escapeHTML(str) {
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
 function buildOrdinanceCard(skin, index) {
-  const slotNum = String(index + 1).padStart(2, '0');
+  const slotNum  = String(index + 1).padStart(2, '0');
   const tierName = skin.tier?.name || 'STANDART';
 
   const imgHTML = skin.image
@@ -163,9 +165,7 @@ function buildOrdinanceCard(skin, index) {
         <span class="slot-tag">SLOT // ${slotNum}</span>
         <span class="tier-tag">${escapeHTML(tierName)}</span>
       </div>
-      <div class="ordinance-visual">
-        ${imgHTML}
-      </div>
+      <div class="ordinance-visual">${imgHTML}</div>
       <div class="ordinance-data">
         <div class="ordinance-name-group">
           <span class="data-sub">SİLAH</span>
@@ -184,31 +184,30 @@ function buildOrdinanceCard(skin, index) {
 }
 
 async function loadStore() {
-  storeLoading.hidden = false;
-  skinsGrid.innerHTML = '';
+  if (storeLoading) storeLoading.hidden = false;
+  if (skinsGrid) skinsGrid.innerHTML = '';
   if (timerInterval) clearInterval(timerInterval);
 
   try {
     const data = await api('GET', '/api/store');
     refreshAt = data.refreshAt;
 
-    // Render Balances
     if (data.wallet && walletBar) {
       if (data.wallet.vp !== null) {
-        walletVp.textContent = data.wallet.vp.toLocaleString('tr-TR');
+        if (walletVp) walletVp.textContent = data.wallet.vp.toLocaleString('tr-TR');
         walletBar.hidden = false;
       }
-      if (data.wallet.radianite !== null) {
+      if (data.wallet.radianite !== null && walletRp) {
         walletRp.textContent = data.wallet.radianite.toLocaleString('tr-TR');
       }
     }
 
-    // Populate grid
-    skinsGrid.innerHTML = data.skins.map((skin, i) => buildOrdinanceCard(skin, i)).join('');
+    if (skinsGrid) {
+      skinsGrid.innerHTML = data.skins.map((skin, i) => buildOrdinanceCard(skin, i)).join('');
+    }
     startTimer();
 
-    // Trigger Motion.dev card entry animation
-    if (window.Motion && window.Motion.animate) {
+    if (window.Motion?.animate) {
       window.Motion.animate(
         '.ordinance-card',
         { opacity: [0, 1], y: [16, 0] },
@@ -216,46 +215,65 @@ async function loadStore() {
       );
     }
   } catch (err) {
-    if (err.code === 'session_expired') {
-      const savedToken = localStorage.getItem(STORAGE_KEY);
-      if (savedToken) {
-        try {
-          await loginWithToken(savedToken);
-          return;
-        } catch {
-          localStorage.removeItem(STORAGE_KEY);
-        }
-      }
-      setupLoginView();
+    // Token süresi dolduysa veya yetkisiz erişimse kullanıcıyı giriş ekranına yönlendir
+    if (err.code === 'token_expired' || err.code === 'no_session') {
+      localStorage.removeItem(STORAGE_KEY);
+      await setupLoginView();
+      if (linkExpiryNotice) linkExpiryNotice.hidden = false;
       showView('login');
       return;
     }
-    skinsGrid.innerHTML = `
-      <div style="grid-column: 1 / -1; padding: 3rem 1.5rem; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 1rem;">
-        <span style="color: var(--clr-red); font-weight: 700;">[SİSTEM UYARISI]: ${escapeHTML(err.message || 'Mağaza verisi alınamadı.')}</span>
-        <button onclick="loadStore()" class="docket-btn-submit" style="max-width: 200px; padding: 0.6rem 1rem; cursor: pointer;">
-          <span class="btn-text">Tekrar Dene ↻</span>
-        </button>
-      </div>
-    `;
+    if (skinsGrid) {
+      skinsGrid.innerHTML = `
+        <div style="grid-column:1/-1;padding:2rem;text-align:center;color:var(--clr-red);">
+          [HATA]: ${escapeHTML(err.message || 'Mağaza verileri alınamadı.')}
+        </div>`;
+    }
   } finally {
-    storeLoading.hidden = true;
+    if (storeLoading) storeLoading.hidden = true;
   }
 }
 
-logoutBtn.addEventListener('click', async () => {
+logoutBtn?.addEventListener('click', async () => {
   localStorage.removeItem(STORAGE_KEY);
   try { await api('POST', '/api/auth/logout'); } catch {}
   if (timerInterval) clearInterval(timerInterval);
-  skinsGrid.innerHTML = '';
-  walletBar.hidden = true;
-  setupLoginView();
+  if (skinsGrid) skinsGrid.innerHTML = '';
+  if (walletBar) walletBar.hidden = true;
+  await setupLoginView();
+  if (linkExpiryNotice) linkExpiryNotice.hidden = true;
   showView('login');
 });
 
-// ── Boot & Recovery ──────────────────────────────────────────────────────────
+// ── PWA Install ───────────────────────────────────────────────────────────────
+
+let deferredPrompt = null;
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  document.querySelectorAll('.install-banner').forEach((b) => (b.hidden = false));
+});
+
+document.querySelectorAll('[id^="install-btn"]').forEach((btn) => {
+  btn.addEventListener('click', async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    await deferredPrompt.userChoice;
+    deferredPrompt = null;
+    document.querySelectorAll('.install-banner').forEach((b) => (b.hidden = true));
+  });
+});
+
+window.addEventListener('appinstalled', () => {
+  document.querySelectorAll('.install-banner').forEach((b) => (b.hidden = true));
+});
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
 
 async function init() {
+  await setupLoginView();
+
   try {
     const status = await api('GET', '/api/status');
     if (status.isAuthenticated) {
@@ -271,77 +289,19 @@ async function init() {
   const savedToken = localStorage.getItem(STORAGE_KEY);
   if (savedToken) {
     try {
-      storeLoading.hidden = false;
-      await loginWithToken(savedToken);
+      if (storeLoading) storeLoading.hidden = false;
+      const data = await api('POST', '/api/auth/token', { tokenInput: savedToken });
+      onLoginSuccess(data.player);
       return;
     } catch {
       localStorage.removeItem(STORAGE_KEY);
     } finally {
-      storeLoading.hidden = true;
+      if (storeLoading) storeLoading.hidden = true;
     }
   }
 
-  await setupLoginView();
   showView('login');
 }
-
-// ── PWA Installation Controller ───────────────────────────────────────────
-
-let deferredInstallPrompt = null;
-const installBannerLogin = document.getElementById('install-banner-login');
-const installBtnLogin   = document.getElementById('install-btn-login');
-const installBtnFooter  = document.getElementById('install-btn-footer');
-const installModal      = document.getElementById('install-modal');
-const installModalClose = document.getElementById('install-modal-close');
-const installModalOk    = document.getElementById('install-modal-ok');
-
-const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
-
-function showInstallUI() {
-  if (isStandalone) return;
-  if (installBannerLogin) installBannerLogin.hidden = false;
-  if (installBtnFooter) installBtnFooter.hidden = false;
-}
-
-window.addEventListener('beforeinstallprompt', (e) => {
-  e.preventDefault();
-  deferredInstallPrompt = e;
-  showInstallUI();
-});
-
-// For iOS / browsers where beforeinstallprompt doesn't fire, show install button on mobile
-const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-if (isMobile && !isStandalone) {
-  showInstallUI();
-}
-
-async function handleInstallClick() {
-  if (deferredInstallPrompt) {
-    deferredInstallPrompt.prompt();
-    const choice = await deferredInstallPrompt.userChoice;
-    if (choice.outcome === 'accepted') {
-      if (installBannerLogin) installBannerLogin.hidden = true;
-      if (installBtnFooter) installBtnFooter.hidden = true;
-    }
-    deferredInstallPrompt = null;
-  } else {
-    // Show instruction modal for iOS / manual installation
-    if (installModal) installModal.hidden = false;
-  }
-}
-
-if (installBtnLogin) installBtnLogin.addEventListener('click', handleInstallClick);
-if (installBtnFooter) installBtnFooter.addEventListener('click', handleInstallClick);
-
-if (installModalClose) installModalClose.addEventListener('click', () => { installModal.hidden = true; });
-if (installModalOk) installModalOk.addEventListener('click', () => { installModal.hidden = true; });
-if (installModal) {
-  installModal.addEventListener('click', (e) => {
-    if (e.target === installModal) installModal.hidden = true;
-  });
-}
-
-// ── Service Worker ───────────────────────────────────────────────────────────
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {

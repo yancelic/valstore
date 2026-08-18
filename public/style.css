@@ -139,6 +139,85 @@ body {
   margin-bottom: 1.75rem;
 }
 
+/* ── Login yöntem sekmeleri ─────────────────────────────────────────────── */
+
+.method-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  margin-bottom: 1.25rem;
+  border: 1px solid var(--border-line);
+  border-radius: var(--radius-strict);
+  overflow: hidden;
+}
+
+.method-tab {
+  padding: 0.65rem 0.5rem;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: var(--bg-panel-alt);
+  color: var(--txt-muted);
+  border: none;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.method-tab + .method-tab {
+  border-left: 1px solid var(--border-line);
+}
+
+.method-tab.active {
+  background: var(--clr-red);
+  color: #fff;
+}
+
+.method-tab:not(.active):hover {
+  background: var(--bg-panel);
+  color: var(--txt-main);
+}
+
+.method-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.method-note {
+  font-size: 0.75rem;
+  color: var(--txt-muted);
+  line-height: 1.55;
+  padding: 0.7rem 0.85rem;
+  background: var(--bg-panel-alt);
+  border-left: 2px solid var(--border-strong);
+  border-radius: var(--radius-strict);
+  margin-bottom: 0.25rem;
+}
+
+.method-warning {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--clr-red);
+  padding: 0.6rem 0.85rem;
+  background: var(--clr-red-soft);
+  border-left: 2px solid var(--clr-red);
+  border-radius: var(--radius-strict);
+}
+
+.method-warn-static {
+  font-size: 0.72rem;
+  color: var(--txt-dim);
+  padding: 0.5rem 0.75rem;
+  background: var(--bg-panel-alt);
+  border-radius: var(--radius-strict);
+  line-height: 1.5;
+}
+.method-warn-static strong {
+  color: var(--txt-muted);
+}
+
 .docket-step {
   display: flex;
   flex-direction: column;
@@ -261,6 +340,39 @@ body {
   color: var(--clr-red);
   font-size: 0.75rem;
 }
+
+.docket-status {
+  margin-top: 0.75rem;
+  font-size: 0.8rem;
+  color: var(--txt-muted);
+  text-align: center;
+  letter-spacing: 0.03em;
+}
+
+.docket-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 1.25rem 0 0.75rem;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--txt-dim);
+  letter-spacing: 0.06em;
+}
+.docket-divider::before,
+.docket-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border-line);
+}
+
+.docket-btn-secondary {
+  background: var(--bg-core);
+  border: 1px solid var(--border-strong);
+  color: var(--txt-main);
+}
+.docket-btn-secondary:hover { background: var(--bg-panel-alt); }
 
 .docket-footer {
   margin-top: 1rem;

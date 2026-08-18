@@ -38,10 +38,8 @@
             <a href="https://github.com/yancelic" target="_blank" rel="noopener noreferrer" class="created-by-badge" title="Geliştirici GitHub">created by yancelic ↗</a>
           </header>
 
-          <!-- Install Banner Button (Hidden if already installed) -->
           <div id="install-banner-login" class="install-banner" hidden>
             <button id="install-btn-login" class="install-banner-btn" type="button">
-              <span class="install-icon">📱</span>
               <span class="install-text">Telefona Yükle (Uygulama Olarak Aç)</span>
               <span class="install-arrow">➔</span>
             </button>
@@ -49,33 +47,39 @@
 
           <div class="docket-body">
             <h1 class="docket-title">VALORANT GİRİŞİ</h1>
-            <p class="docket-sub">Günlük mağazanı görmek için Riot resmi sayfası üzerinden giriş yap.</p>
+            <p class="docket-sub">Günlük mağazanı görmek için resmi Riot sayfası üzerinden oturum aç.</p>
 
+            <div id="link-expiry-notice" class="method-warning" hidden>
+              ⚠ Oturum süresi doldu — lütfen yeni bir Riot linki al.
+            </div>
+
+            <!-- Adım 1 -->
             <div class="docket-step">
               <div class="step-meta">
                 <span class="step-index">[01]</span>
                 <span class="step-label">Riot Resmi Giriş Sayfası</span>
               </div>
               <a id="riot-login-link" href="#" target="_blank" rel="noopener noreferrer" class="docket-btn-action">
-                <span>Riot Games Oturumu Aç</span>
+                <span>Riot Giriş Sayfasını Aç</span>
                 <span class="btn-arrow">↗</span>
               </a>
             </div>
 
-            <!-- ── Guidance Box (404 Explanation) ── -->
+            <!-- Bilgilendirme Kutusu -->
             <div class="docket-notice">
               <div class="notice-head">
                 <span class="notice-badge">BİLGİ // 404 NORMALDİR</span>
               </div>
               <p class="notice-text">
-                Giriş yaptıktan sonra ekranda <strong>"404 / Sayfa Bulunamadı"</strong> yazması <u>tamamen normaldir</u>. Sayfa açılmasa bile tarayıcınızın en üstündeki <strong>adres (URL) çubuğundaki linki kopyalayın</strong> ve aşağıdaki alana yapıştırın.
+                Giriş yaptıktan sonra ekranda <strong>"404 / Sayfa Bulunamadı"</strong> yazması <u>tamamen normaldir</u>. Tarayıcınızın en üstündeki <strong>adres çubuğundaki linki kopyalayın</strong> ve aşağıdaki alana yapıştırın.
               </p>
             </div>
 
+            <!-- Adım 2 -->
             <div class="docket-step">
               <div class="step-meta">
                 <span class="step-index">[02]</span>
-                <span class="step-label">Kopyaladığın Adresi Yapıştır</span>
+                <span class="step-label">Yönlendirme Adresini Yapıştır</span>
               </div>
               <form id="token-form" class="docket-form">
                 <input
@@ -95,11 +99,15 @@
               </form>
               <p id="token-error" class="docket-error" hidden></p>
             </div>
+
+            <p class="method-warn-static" style="margin-top: 0.5rem;">
+              Bu oturum Riot güvenlik politikaları gereği yaklaşık <strong>1 saat</strong> geçerlidir. Mağaza yüklenemediğinde veya süre bittiğinde otomatik bu ekrana yönlendirilirsiniz.
+            </p>
           </div>
 
           <footer class="docket-footer">
             <div class="footer-terms">
-              <span>Şifre saklanmaz. Doğrudan Riot sunucusuyla doğrulanır.</span>
+              <span>Bu uygulama Riot Games ile resmi bağlantısı bulunmayan bağımsız bir araçtır.</span>
               <div class="footer-links">
                 <a href="https://github.com/yancelic" target="_blank" rel="noopener noreferrer" class="footer-author">created by yancelic</a>
                 <span>•</span>
